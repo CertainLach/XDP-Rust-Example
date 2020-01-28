@@ -20,13 +20,27 @@ pub enum XdpAction {
 	Redirect = 4,
 }
 
+type BPFTracePrintk = unsafe extern "C" fn(fmt: *const u8, size: i32, ...) -> i32;
+
+macro_rules! traceln {
+    ($line: expr $(, $x:expr )*) => {
+        const len: usize = $line.len() + 2;
+        let bpf_trace_printk: BPFTracePrintk = unsafe { core::mem::transmute(6u64) };
+        unsafe{
+        bpf_trace_printk(
+            concat!($line, "\n\0").as_bytes().as_ptr() as *const u8,
+            len as i32,
+            $(
+                $x,
+            )*
+            );
+        }
+    };
+}
+
 #[no_mangle]
 #[link_section = "prog"]
 pub extern "C" fn main(ctx: &mut xdp_md) -> XdpAction {
-	let bpf_trace_printk: unsafe extern "C" fn(fmt: &[u8; 27], size: i32, ...) -> i32 =
-		unsafe { core::mem::transmute(6u64) };
-	unsafe {
-		bpf_trace_printk(b"Hello from ebpf world! %p\n\0", 27, ctx);
-	};
+	traceln!("Hello from ebpf world! %p %i", ctx, 2 + 3);
 	XdpAction::Pass
 }
